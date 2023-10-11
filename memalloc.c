@@ -64,3 +64,38 @@ void *malloc(size_t size) {
   pthread_mutex_unlock(&global_malloc_lock);
   return (void*)(header + 1);
 }
+
+void free(void *block) {
+  header_t *header, *tmp;
+  void *programbreak;
+
+  if (!block) {
+    return;
+  }
+
+  pthread_mutex_lock(&global_malloc_lock);
+  header = (header_t*)block - 1; //get header of block
+
+  programbreak = sbrk(0);
+  if ((char*)block + header->s.size == programbreak) { //char makes arithmetic perform on a byte basis
+    if (head == tail) {
+      head = tail = NULL;
+    } else {
+      tmp = head;
+      while (tmp) {
+        if (tmp->s.next == tail) {
+          tmp->s.next = NULL;
+          tail = tmp;
+        }
+        tmp = tmp->s.next;
+      }
+    }
+    sbrk(0 - sizeof(header_t) - header->s.size);
+    pthread_mutex_unlock(&global_malloc_lock);
+    return;
+  }
+
+  header->s.is_free = 1;
+  pthread_mutex_unlock(&global_malloc_lock);
+  
+}
